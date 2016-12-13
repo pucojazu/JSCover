@@ -342,16 +342,31 @@ Public License instead of this License.
 
 package jscover.server;
 
-import jscover.util.IoUtils;
+import static java.lang.String.format;
+import static java.util.logging.Level.FINE;
+import static java.util.logging.Level.FINEST;
+import static java.util.logging.Level.WARNING;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.PushbackInputStream;
 import java.net.Socket;
 import java.nio.charset.Charset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.StringTokenizer;
 import java.util.logging.Logger;
 
-import static java.lang.String.format;
-import static java.util.logging.Level.*;
+import jscover.util.IoUtils;
 
 public class HttpServer extends Thread {
     private static final Logger logger = Logger.getLogger(HttpServer.class.getName());
@@ -465,7 +480,23 @@ public class HttpServer extends Thread {
     protected void handleGet(HttpRequest request) throws IOException {
         String path = request.getRelativePath();
         File file = new File(wwwRoot, path);
-        if (!file.exists()) {
+
+		// Try index.html, if the file is a directory
+		if (file.isDirectory()) {
+			File indexFile = new File(file, "index.html");
+			if (indexFile.exists()) {
+				file = indexFile;
+				request = new HttpRequest(
+						request.getPath() + "/index.html",
+						request.getInputStream(),
+						request.getOutputStream(),
+						request.getPostIndex(),
+						request.getHeaders()
+				);
+			}
+		}
+
+		if (!file.exists()) {
             String data = "<html><body>Not found</body></html>";
             sendResponse(HTTP_STATUS.HTTP_FILE_NOT_FOUND, MIME.HTML, data);
         } else if (file.isFile()) {
